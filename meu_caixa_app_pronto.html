@@ -1,0 +1,174 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Caixa</title>
+<style>
+body, html { margin:0; padding:0; font-family: 'Segoe UI', sans-serif; }
+body { background:#e3f2fd; color:#333; overflow-x:hidden; }
+header { background:#0d47a1; color:#fff; padding:16px; text-align:center; font-size:1.4em; }
+.container { padding:16px; padding-bottom:90px; }
+input, textarea, button { width:100%; padding:12px; margin:8px 0; border-radius:8px; border:1px solid #ccc; font-size:1em; }
+textarea { resize:none; }
+button { background:#1976d2; color:#fff; border:none; font-weight:bold; }
+.card { background:#fff; border-radius:12px; padding:14px; margin:10px 0; box-shadow:0 4px 10px rgba(0,0,0,0.12); }
+.nav { position:fixed; bottom:0; width:100%; background:#bbdefb; display:flex; overflow-x:auto; }
+.nav button { flex:1; min-width:120px; padding:14px; border-radius:0; background:none; color:#0d47a1; font-weight:bold; }
+.hide { display:none; }
+.suggestion-list { background:#fff; border:1px solid #ccc; max-height:120px; overflow-y:auto; position:absolute; z-index:1000; width:calc(100% - 32px); }
+.suggestion-item { padding:8px; cursor:pointer; }
+.suggestion-item:hover { background:#eee; }
+</style>
+</head>
+<body>
+<header>Meu Caixa</header>
+
+<!-- LOGIN -->
+<div class="container" id="loginDiv">
+<h2>Login</h2>
+<input id="username" placeholder="Usuário">
+<input id="password" type="password" placeholder="Senha">
+<button onclick="login()">Entrar</button>
+<p id="loginMsg" style="color:red"></p>
+</div>
+
+<!-- APP -->
+<div class="container hide" id="appDiv">
+
+<div id="panorama" class="screen">
+<h2>Resumo</h2>
+<div class="card">Total emprestado: R$ <span id="totEmp">0</span></div>
+<div class="card">Total a receber: R$ <span id="totRec">0</span></div>
+<div class="card">Total já recebido: R$ <span id="totPago">0</span></div>
+<div class="card">Lucro geral: R$ <span id="lucro">0</span></div>
+</div>
+
+<div id="clientes" class="screen hide">
+<h2>Clientes</h2>
+<input placeholder="Pesquisar cliente" oninput="filtrar(this.value)">
+<div id="lista"></div>
+</div>
+
+<div id="add" class="screen hide">
+<h2>Adicionar</h2>
+<input id="nome" placeholder="Nome do cliente">
+<input id="valor" type="number" placeholder="Valor emprestado">
+<input id="dataEmp" type="date">
+<input id="dataLim" type="date">
+<textarea id="obs" placeholder="Observações"></textarea>
+<button onclick="salvarCliente()">Salvar</button>
+</div>
+
+<div id="pagar" class="screen hide" style="position:relative;">
+<h2>Registrar pagamento</h2>
+<input id="clienteSearch" placeholder="Nome do cliente" oninput="mostrarSugestoes()">
+<div id="sugestoes" class="suggestion-list hide"></div>
+<input id="valorPag" type="number" placeholder="Valor pago">
+<input id="dataPag" type="date">
+<textarea id="obsPag" placeholder="Observações"></textarea>
+<button onclick="registrarPagamento()">Registrar</button>
+</div>
+
+</div>
+
+<div class="nav hide" id="navBar">
+<button onclick="show('panorama')">Panorama</button>
+<button onclick="show('clientes')">Clientes</button>
+<button onclick="show('add')">Adicionar</button>
+<button onclick="show('pagar')">Pagamento</button>
+</div>
+
+<script>
+let usuario = 'civic';
+let senha = 'g10preto';
+let clientes = JSON.parse(localStorage.getItem('clientes')) || [];
+
+function login(){
+ if(username.value.trim() === usuario && password.value.trim() === senha){
+  loginMsg.innerText='';
+  loginDiv.classList.add('hide');
+  appDiv.classList.remove('hide');
+  navBar.classList.remove('hide');
+  atualizar();
+ } else {
+  loginMsg.innerText='Usuário ou senha incorretos';
+ }
+}
+
+function show(id){
+ document.querySelectorAll('.screen').forEach(s=>s.classList.add('hide'));
+ document.getElementById(id).classList.remove('hide');
+ atualizar();
+}
+
+function salvarCliente(){
+ clientes.push({nome:nome.value,valor:+valor.value,dataEmp:dataEmp.value,dataLim:dataLim.value,obs:obs.value,pago:0});
+ salvar();
+ nome.value=valor.value=obs.value='';
+ show('clientes');
+}
+
+function calcular(c){
+ let hoje=new Date();
+ let lim=new Date(c.dataLim);
+ let atraso=Math.max(0,Math.floor((hoje-lim)/(1000*60*60*24)));
+ return atraso*10;
+}
+
+function atualizar(){
+ let te=0,tr=0,tp=0;
+ lista.innerHTML='';
+ clientes.forEach(c=>{
+  let multa=calcular(c);
+  let dev=c.valor-c.pago+multa;
+  te+=c.valor; tr+=dev; tp+=c.pago;
+  let d=document.createElement('div');
+  d.className='card';
+  d.innerHTML=`<strong>${c.nome}</strong><br>Emprestado: R$ ${c.valor} | Devedor: R$ ${Math.max(0,dev)}`;
+  lista.appendChild(d);
+ });
+ totEmp.innerText=te.toFixed(2);
+ totRec.innerText=tr.toFixed(2);
+ totPago.innerText=tp.toFixed(2);
+ lucro.innerText=(tp-te).toFixed(2);
+}
+
+function filtrar(v){
+ document.querySelectorAll('#lista .card').forEach(c=>{
+  c.style.display=c.innerText.toLowerCase().includes(v.toLowerCase())?'':'none';
+ });
+}
+
+function mostrarSugestoes(){
+ sugestoes.innerHTML='';
+ const val=clienteSearch.value.toLowerCase();
+ if(!val){sugestoes.classList.add('hide');return;}
+ clientes.filter(c=>c.nome.toLowerCase().includes(val)).forEach(c=>{
+  let d=document.createElement('div');
+  d.className='suggestion-item';
+  d.innerText=c.nome;
+  d.onclick=()=>{clienteSearch.value=c.nome;sugestoes.classList.add('hide');};
+  sugestoes.appendChild(d);
+ });
+ sugestoes.classList.remove('hide');
+}
+
+function registrarPagamento(){
+ let c=clientes.find(c=>c.nome===clienteSearch.value);
+ if(!c)return;
+ c.pago+=+valorPag.value;
+ salvar();
+ valorPag.value=obsPag.value=clienteSearch.value='';
+ show('clientes');
+}
+
+function salvar(){
+ localStorage.setItem('clientes',JSON.stringify(clientes));
+}
+
+window.addEventListener('beforeunload', salvar);
+</script>
+</body>
+</html>
